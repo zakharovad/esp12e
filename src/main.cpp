@@ -1,6 +1,8 @@
 
 #include <Arduino.h>
+//#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
+#include <bits/basic_string.h>
 #include ".././lib/WebSockets/src/WebSocketsServer.h"
 #define __AVR__ //for  WebSocketServerEvent
 #ifndef APSSID
@@ -40,24 +42,31 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) 
             onDisconnectWS();
         }
         break;
+
         case WStype_CONNECTED: {              // if a new websocket connection is established
             IPAddress ip = webSocket.remoteIP(num);
             Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
             onConnectWS();
         }
         break;
-        case WStype_TEXT:                     // if new text data is received
+
+        case WStype_TEXT: {
             Serial.printf("[%u] get Text: %s\n", num, payload);
+            String str = String((char *)payload);
             onMessageWS();
-            break;
-        case WStype_BIN:
+        }                  // if new text data is received
+        break;
+
+        case WStype_BIN:{
             Serial.printf("[%u] get binary length: %u\n", num, size);
             onMessageWS();
             // send message to client
             // webSocket.sendBIN(num, payload, length);
+        }
         break;
+
         default:
-            break;
+        break;
     }
 }
 
