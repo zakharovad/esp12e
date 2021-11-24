@@ -1,6 +1,6 @@
 
 #include <Arduino.h>
-//#include <ArduinoJson.h>
+#include ".././lib/ArduinoJson/src/ArduinoJson.h"
 #include <ESP8266WiFi.h>
 #include <bits/basic_string.h>
 #include ".././lib/WebSockets/src/WebSocketsServer.h"
@@ -8,13 +8,24 @@
 #ifndef APSSID
 #define APSSID "adz"
 #define APPSK  "Admin1234%"
+#define SERVER_PORT 81;
 #endif
 #define CONNECT_PIN 13
 /* Set these to your desired credentials. */
 const char *ssid = APSSID;
 const char *password = APPSK;
 int brightness[4] = {10, 80, 150, 255};
-WebSocketsServer webSocket = WebSocketsServer(81);
+int port = SERVER_PORT;
+struct BaseModel{
+    String type;
+
+}baseModel;
+struct LedModel : BaseModel{
+   int brightness;
+
+} ledModel;
+
+WebSocketsServer webSocket = WebSocketsServer(port);
 
 void initPins(){
     pinMode (CONNECT_PIN, OUTPUT);
@@ -29,8 +40,18 @@ void onDisconnectWS(){
     analogWrite(CONNECT_PIN, brightness[0]);
 }
 
-void onMessageWS(){
-    analogWrite(CONNECT_PIN, brightness[2]);
+void onMessageWS(String json){
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, json);
+
+    // Test if parsing succeeds.
+    if (error) {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return;
+    }
+    JsonObject root = doc.to<JsonObject>();
+    //Serial.println(String((char )root["type"]));
 }
 
 
@@ -53,13 +74,12 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) 
         case WStype_TEXT: {
             Serial.printf("[%u] get Text: %s\n", num, payload);
             String str = String((char *)payload);
-            onMessageWS();
+            onMessageWS(str);
         }                  // if new text data is received
         break;
 
         case WStype_BIN:{
             Serial.printf("[%u] get binary length: %u\n", num, size);
-            onMessageWS();
             // send message to client
             // webSocket.sendBIN(num, payload, length);
         }
