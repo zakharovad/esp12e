@@ -1,8 +1,8 @@
-
 #include <Arduino.h>
+#include <iostream>
+#include <sstream>
 #include ".././lib/ArduinoJson/src/ArduinoJson.h"
 #include <ESP8266WiFi.h>
-#include <bits/basic_string.h>
 #include ".././lib/WebSockets/src/WebSocketsServer.h"
 #define __AVR__ //for  WebSocketServerEvent
 #ifndef APSSID
@@ -14,46 +14,51 @@
 /* Set these to your desired credentials. */
 const char *ssid = APSSID;
 const char *password = APPSK;
-int brightness[4] = {10, 80, 150, 255};
 int port = SERVER_PORT;
-struct BaseModel{
-    String type;
 
-}baseModel;
-struct LedModel : BaseModel{
-   int brightness;
+struct LedModel{
+int brightness = 0;
+String type = "LedModel";
 
 } ledModel;
+struct LedModel *pLedModel = &ledModel;
+
+void updateLedStructure(LedModel *ledModel, JsonObject &object){
+    JsonVariant brightness = object.getMember("brightness");
+    ledModel->brightness = brightness.as<int>();
+}
+void lightingLoop(LedModel *ledModel){
+    analogWrite(CONNECT_PIN, ledModel->brightness);
+}
 
 WebSocketsServer webSocket = WebSocketsServer(port);
 
 void initPins(){
     pinMode (CONNECT_PIN, OUTPUT);
 }
-void onStartWifi(){
-    analogWrite(CONNECT_PIN, brightness[0]);
-}
-void onConnectWS(){
-    analogWrite(CONNECT_PIN, brightness[1]);
-}
-void onDisconnectWS(){
-    analogWrite(CONNECT_PIN, brightness[0]);
-}
+void onStartWifi(){}
+
+void onConnectWS(){}
+
+void onDisconnectWS(){}
 
 void onMessageWS(String json){
     StaticJsonDocument<200> doc;
     DeserializationError error = deserializeJson(doc, json);
-
-    // Test if parsing succeeds.
     if (error) {
         Serial.print(F("deserializeJson() failed: "));
         Serial.println(error.f_str());
         return;
     }
-    JsonObject root = doc.to<JsonObject>();
-    //Serial.println(String((char )root["type"]));
-}
+    JsonObject root = doc.as<JsonObject>();
+    JsonVariant type = root.getMember("type");
+    Serial.println("json type: "+type.as<String>()+"\n");
+    Serial.println("ledModel type: "+pLedModel->type+"\n");
+    if(type.as<String>() == pLedModel->type){
 
+        updateLedStructure(pLedModel, root);
+    }
+}
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) {
     switch (type) {
@@ -95,6 +100,7 @@ void startWebSocket() {
     webSocket.onEvent( webSocketEvent);
     Serial.println("WebSocket server started.");
 }
+
 void setup() {
     delay(1000);
     Serial.begin(115200);
@@ -108,6 +114,8 @@ void setup() {
     onStartWifi();
     startWebSocket();
 }
+
 void loop() {
     webSocket.loop();
+    lightingLoop(pLedModel);
 }
