@@ -16,11 +16,25 @@ const char *ssid = APSSID;
 const char *password = APPSK;
 int port = SERVER_PORT;
 
-struct LedModel{
-int brightness = 0;
-String type = "LedModel";
+struct BaseModel {
+    String type = "";
+    virtual String toJsonString() = 0;
+};
 
+struct LedModel :  BaseModel {
+int brightness = 0;
+    String type = "LedModel";
+    String toJsonString(){
+        StaticJsonDocument<200> doc;
+        JsonObject root = doc.to<JsonObject>();
+        root["type"] = type;
+        root["brightness"] = brightness;
+        String output;
+        serializeJson(root,output);
+        return output;
+    };
 } ledModel;
+
 struct LedModel *pLedModel = &ledModel;
 
 void updateLedStructure(LedModel *ledModel, JsonObject &object){
@@ -38,7 +52,9 @@ void initPins(){
 }
 void onStartWifi(){}
 
-void onConnectWS(){}
+void onConnectWS(){
+
+}
 
 void onDisconnectWS(){}
 
@@ -52,14 +68,16 @@ void onMessageWS(String json){
     }
     JsonObject root = doc.as<JsonObject>();
     JsonVariant type = root.getMember("type");
-    Serial.println("json type: "+type.as<String>()+"\n");
-    Serial.println("ledModel type: "+pLedModel->type+"\n");
     if(type.as<String>() == pLedModel->type){
 
         updateLedStructure(pLedModel, root);
     }
 }
-
+void sendModel(BaseModel *event){
+    String json = event->toJsonString();
+    Serial.println("sendModel: " + json);
+    webSocket.sendTXT(0,json);
+}
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) {
     switch (type) {
         case WStype_DISCONNECTED: {
@@ -73,6 +91,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) 
             IPAddress ip = webSocket.remoteIP(num);
             Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
             onConnectWS();
+            sendModel(&ledModel);
         }
         break;
 
