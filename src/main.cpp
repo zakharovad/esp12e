@@ -10,12 +10,14 @@
 #define APPSK  "Admin1234%"
 #define SERVER_PORT 81;
 #endif
-#define LED_PIN 13 //for brightness
+#define LED_PIN 5 //for brightness
 #define ENA_PIN 12 //for driver ena
 #define IN1_PIN 16 //for driver in1
 #define IN2_PIN 15 //for driver in1
-
-#define SPEED_СOEF 5 //for driver  deceleration ratio
+#define ENB_PIN 14 //for driver enb
+#define IN3_PIN 2 //for driver in2
+#define IN4_PIN 13 //for driver in2
+#define SPEED_СOEF 3 //for driver  deceleration ratio
 
 /* Set these to your desired credentials. */
 //bit mask driver state
@@ -34,7 +36,7 @@ struct BaseModel {
 };
 
 struct LedModel :  BaseModel {
-int brightness = 0;
+    int brightness = 0;
     String type = "LedModel";
     String toJsonString(){
         StaticJsonDocument<200> doc;
@@ -82,29 +84,46 @@ void lightingLoop(LedModel *ledModel){
     analogWrite(LED_PIN, ledModel->brightness);
 }
 void drivingLoop(DriveModel *driveModel){
-
     switch(driveModel->direction){
         case moveStop:
             digitalWrite(IN1_PIN, LOW);
-            digitalWrite(IN2_PIN, LOW);
+            digitalWrite(IN1_PIN, LOW);
+            digitalWrite(IN3_PIN, LOW);
+            digitalWrite(IN4_PIN, LOW);
+            analogWrite(ENA_PIN, driveModel->speed);
+            analogWrite(ENB_PIN, driveModel->speed);
             break;
         case moveForward:
+            Serial.printf("moveForward direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, HIGH);
             digitalWrite(IN2_PIN, LOW);
+            analogWrite(ENB_PIN, driveModel->speed);
+            digitalWrite(IN3_PIN, HIGH);
+            digitalWrite(IN4_PIN, LOW);
             break;
         case moveBack:
+            Serial.printf("moveBack direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, LOW);
             digitalWrite(IN2_PIN, HIGH);
+            analogWrite(ENB_PIN, driveModel->speed);
+            digitalWrite(IN3_PIN, LOW);
+            digitalWrite(IN4_PIN, HIGH);
             break;
         case moveRight:
             analogWrite(ENA_PIN, driveModel->speed);
+            analogWrite(ENB_PIN, 0);
             digitalWrite(IN1_PIN, HIGH);
             digitalWrite(IN2_PIN, LOW);
+            digitalWrite(IN3_PIN, LOW);
+            digitalWrite(IN4_PIN, LOW);
             break;
         case moveLeft:
-            analogWrite(ENA_PIN, driveModel->speed);
+            analogWrite(ENB_PIN, driveModel->speed);
+            analogWrite(ENA_PIN, 0);
+            digitalWrite(IN3_PIN, HIGH);
+            digitalWrite(IN4_PIN, LOW);
             digitalWrite(IN1_PIN, LOW);
             digitalWrite(IN2_PIN, LOW);
             break;
@@ -112,21 +131,33 @@ void drivingLoop(DriveModel *driveModel){
             analogWrite(ENA_PIN, driveModel->speed/SPEED_СOEF);
             digitalWrite(IN1_PIN, HIGH);
             digitalWrite(IN2_PIN, LOW);
+            analogWrite(ENB_PIN, driveModel->speed);
+            digitalWrite(IN3_PIN, HIGH);
+            digitalWrite(IN4_PIN, LOW);
             break;
         case (moveForward | moveRight):
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, HIGH);
             digitalWrite(IN2_PIN, LOW);
+            analogWrite(ENB_PIN, driveModel->speed/SPEED_СOEF);
+            digitalWrite(IN3_PIN, HIGH);
+            digitalWrite(IN4_PIN, LOW);
             break;
         case (moveBack | moveLeft):
             analogWrite(ENA_PIN, driveModel->speed/SPEED_СOEF);
             digitalWrite(IN1_PIN, LOW);
             digitalWrite(IN2_PIN, HIGH);
+            analogWrite(ENB_PIN, driveModel->speed);
+            digitalWrite(IN3_PIN, LOW);
+            digitalWrite(IN4_PIN, HIGH);
             break;
         case (moveBack | moveRight):
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, LOW);
             digitalWrite(IN2_PIN, HIGH);
+            analogWrite(ENB_PIN, driveModel->speed/SPEED_СOEF);
+            digitalWrite(IN3_PIN, LOW);
+            digitalWrite(IN4_PIN, HIGH);
             break;
 
     }
@@ -140,17 +171,9 @@ void initPins(){
     pinMode (ENA_PIN, OUTPUT);
     pinMode (IN1_PIN, OUTPUT);
     pinMode (IN2_PIN, OUTPUT);
-    pinMode (11, OUTPUT);
-    pinMode (10, OUTPUT);
-    pinMode (9, OUTPUT);
-    pinMode (8, OUTPUT);
-    pinMode (7, OUTPUT);
-    pinMode (6, OUTPUT);
-    pinMode (5, OUTPUT);
-    pinMode (4, OUTPUT);
-    pinMode (2, OUTPUT);
-    pinMode (3, OUTPUT);
-    pinMode (1, OUTPUT);
+    pinMode (ENB_PIN, OUTPUT);
+    pinMode (IN3_PIN, OUTPUT);
+    pinMode (IN4_PIN, OUTPUT);
 }
 void onStartWifi(){}
 
@@ -192,7 +215,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) 
             Serial.printf("[%u] Disconnected!\n", num);
             onDisconnectWS();
         }
-        break;
+            break;
 
         case WStype_CONNECTED: {              // if a new websocket connection is established
             IPAddress ip = webSocket.remoteIP(num);
@@ -200,24 +223,24 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t size) 
             onConnectWS();
             sendModel(&ledModel);
         }
-        break;
+            break;
 
         case WStype_TEXT: {
             Serial.printf("[%u] get Text: %s\n", num, payload);
             String str = String((char *)payload);
             onMessageWS(str);
         }                  // if new text data is received
-        break;
+            break;
 
         case WStype_BIN:{
             Serial.printf("[%u] get binary length: %u\n", num, size);
             // send message to client
             // webSocket.sendBIN(num, payload, length);
         }
-        break;
+            break;
 
         default:
-        break;
+            break;
     }
 }
 
@@ -227,6 +250,17 @@ void startWebSocket() {
     Serial.println("WebSocket server started.");
 }
 void testOn() {
+    pinMode (11, OUTPUT);
+    pinMode (10, OUTPUT);
+    pinMode (9, OUTPUT);
+    pinMode (8, OUTPUT);
+    pinMode (7, OUTPUT);
+    pinMode (6, OUTPUT);
+    pinMode (5, OUTPUT);
+    pinMode (4, OUTPUT);
+    pinMode (2, OUTPUT);
+    pinMode (3, OUTPUT);
+    pinMode (1, OUTPUT);
     digitalWrite (11, HIGH);
     digitalWrite (10, HIGH);
     digitalWrite (9, HIGH);
@@ -270,18 +304,14 @@ void setup() {
 }
 bool test = true;
 void loop() {
-    if(test){
+    /*if(test){
         testOn();
         test = false;
     }else{
         testOf();
         test = true;
-    }
+    }*/
     webSocket.loop();
     lightingLoop(pLedModel);
     drivingLoop(pDriveModel);
-    //digitalWrite (4, 1);
-    //digitalWrite (4, 1);
-    //digitalWrite (3, 1);
-    //digitalWrite (1, 1);
 }
