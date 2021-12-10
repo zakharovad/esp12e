@@ -10,15 +10,32 @@
 #define APPSK  "Admin1234%"
 #define SERVER_PORT 81;
 #endif
-#define LED_PIN 5 //for brightness
+/*
+NodeMcu   Esp12e
+d0      - 16pin
+d1      - 5pin
+d2      - 4pin
+d3      - 0pin
+d4      - 2pin
+d5      - 14pin
+d6      - 12pin
+d7      - 13pin
+d8      - 15pin
+ */
+//left motors
 #define ENA_PIN 12 //for driver ena
-#define IN1_PIN 16 //for driver in1
-#define IN2_PIN 15 //for driver in1
-#define ENB_PIN 14 //for driver enb
-#define IN3_PIN 2 //for driver in2
-#define IN4_PIN 13 //for driver in2
-#define SPEED_СOEF 3 //for driver  deceleration ratio
+#define IN1_PIN 0 //for driver in1
+#define IN2_PIN 2 //for driver in1
 
+//right motors
+#define ENB_PIN 14 //for driver enb
+#define IN3_PIN 15 //for driver in2
+#define IN4_PIN 13 //for driver in2
+
+//for driver  deceleration ratio
+#define SPEED_СOEF 3
+//for brightness
+#define LED_PIN 5
 /* Set these to your desired credentials. */
 //bit mask driver state
 const unsigned int  moveForward = 1; //0001;
@@ -112,6 +129,7 @@ void drivingLoop(DriveModel *driveModel){
             digitalWrite(IN4_PIN, HIGH);
             break;
         case moveRight:
+            Serial.printf("moveRight direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             analogWrite(ENB_PIN, 0);
             digitalWrite(IN1_PIN, HIGH);
@@ -120,6 +138,7 @@ void drivingLoop(DriveModel *driveModel){
             digitalWrite(IN4_PIN, LOW);
             break;
         case moveLeft:
+            Serial.printf("moveLeft direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENB_PIN, driveModel->speed);
             analogWrite(ENA_PIN, 0);
             digitalWrite(IN3_PIN, HIGH);
@@ -249,45 +268,6 @@ void startWebSocket() {
     webSocket.onEvent( webSocketEvent);
     Serial.println("WebSocket server started.");
 }
-void testOn() {
-    pinMode (11, OUTPUT);
-    pinMode (10, OUTPUT);
-    pinMode (9, OUTPUT);
-    pinMode (8, OUTPUT);
-    pinMode (7, OUTPUT);
-    pinMode (6, OUTPUT);
-    pinMode (5, OUTPUT);
-    pinMode (4, OUTPUT);
-    pinMode (2, OUTPUT);
-    pinMode (3, OUTPUT);
-    pinMode (1, OUTPUT);
-    digitalWrite (11, HIGH);
-    digitalWrite (10, HIGH);
-    digitalWrite (9, HIGH);
-    digitalWrite (8, HIGH);
-    digitalWrite (7, HIGH);
-    digitalWrite (6, HIGH);
-    digitalWrite (5, HIGH);
-    digitalWrite (4, HIGH);
-    digitalWrite (3, HIGH);
-    digitalWrite (2, HIGH);
-    digitalWrite (1, HIGH);
-    delay(2000);
-}
-void testOf() {
-    digitalWrite (11, LOW);
-    digitalWrite (10, LOW);
-    digitalWrite (9, LOW);
-    digitalWrite (8, LOW);
-    digitalWrite (7, LOW);
-    digitalWrite (6, LOW);
-    digitalWrite (5, LOW);
-    digitalWrite (4, LOW);
-    digitalWrite (3, LOW);
-    digitalWrite (2, LOW);
-    digitalWrite (1, LOW);
-    delay(2000);
-}
 
 void setup() {
     delay(1000);
@@ -303,15 +283,26 @@ void setup() {
     startWebSocket();
 }
 bool test = true;
-void loop() {
-    /*if(test){
-        testOn();
-        test = false;
+void testDriver() {
+    if(test){
+        digitalWrite(IN1_PIN, HIGH);
+        digitalWrite(IN2_PIN, LOW);
+        digitalWrite(IN3_PIN, HIGH);
+        digitalWrite(IN4_PIN, LOW);
     }else{
-        testOf();
-        test = true;
-    }*/
+        digitalWrite(IN1_PIN, LOW);
+        digitalWrite(IN2_PIN, HIGH);
+        digitalWrite(IN3_PIN, LOW);
+        digitalWrite(IN4_PIN, HIGH);
+    }
+    test = !test;
+    delay(2000);
+}
+void loop() {
+
     webSocket.loop();
+    //testDriver();
     lightingLoop(pLedModel);
     drivingLoop(pDriveModel);
+
 }
