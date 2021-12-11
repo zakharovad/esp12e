@@ -14,7 +14,7 @@ template <typename T, typename Enable>
 struct Converter {
   static void toJson(const T& src, VariantRef dst) {
     // clang-format off
-    convertToJson(static_cast<const ArduinoJson6185_F1::struct JsonDocument>(src), dst); // Error here? See https://arduinojson.org/v6/unsupported-set/
+      convertToJson(src, dst); // Error here? See https://arduinojson.org/v6/unsupported-set/
     // clang-format on
   }
 
