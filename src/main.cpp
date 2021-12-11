@@ -36,6 +36,8 @@ d8      - 15pin
 #define SPEED_СOEF 3
 //for brightness
 #define LED_PIN 5
+//for buzzer
+#define BUZZER_PIN 4
 /* Set these to your desired credentials. */
 //bit mask driver state
 const unsigned int  moveForward = 1; //0001;
@@ -82,12 +84,48 @@ struct DriveModel :  BaseModel {
     };
 } driveModel;
 
+struct BuzzerModel :  BaseModel {
+    String type = "BuzzerModel";
+    static const int countNotes = 32;
+    int frequences[countNotes] = {};
+    int durations[countNotes] = {};
+    bool active = false;
+    String toJsonString(){
+        StaticJsonDocument<200> doc;
+        JsonObject root = doc.to<JsonObject>();
+        root["type"] = type;
+        root["active"] = active;
+       /* root["frequences"] = frequences;
+        root["durations"] = durations;*/
+        String output;
+        serializeJson(root,output);
+        return output;
+    };
+} buzzerModel;
+
+struct BuzzerModel *pBuzzerModel = &buzzerModel;
 struct LedModel *pLedModel = &ledModel;
 struct DriveModel *pDriveModel = &driveModel;
 
 void updateLedStructure(LedModel *ledModel, JsonObject &object){
     JsonVariant brightness = object.getMember("brightness");
     ledModel->brightness = brightness.as<int>();
+}
+void updateBuzzerStructure(BuzzerModel *buzzerModel, JsonObject &object){
+    JsonVariant active = object.getMember("active");
+    JsonArray  frequences = object.getMember("frequences");
+    JsonArray  durations = object.getMember("durations");
+    buzzerModel->active = active.as<bool>();
+    int index = 0;
+    for(JsonVariant v : frequences) {
+        buzzerModel->frequences[index] = v.as<int>();
+        index++;
+    }
+    index = 0;
+    for(JsonVariant v : durations) {
+        buzzerModel->durations[index] = v.as<int>();
+        index++;
+    }
 }
 void updateDriveStructure(DriveModel *driveModel, JsonObject &object){
     JsonVariant speed = object.getMember("speed");
@@ -96,10 +134,21 @@ void updateDriveStructure(DriveModel *driveModel, JsonObject &object){
     driveModel->direction = direction.as<int>();
     Serial.printf("updateDriveStructure: %d  speed: %d\n", driveModel->direction,driveModel->speed);
 }
+void buzzerLoop(BuzzerModel *buzzerModel){
+    if(!buzzerModel->active){
+        return;
+    }
+    for (int i = 0; i <= BuzzerModel::countNotes; i++  ){
+      tone(BUZZER_PIN, buzzerModel->frequences[i], buzzerModel->durations[i] * 2); // Включаем звук, определенной частоты
+        delay(buzzerModel->durations[i] * 2);  // Дауза для заданой ноты
+        noTone(BUZZER_PIN); // Останавливаем звук
+    }
+}
 
 void lightingLoop(LedModel *ledModel){
     analogWrite(LED_PIN, ledModel->brightness);
 }
+
 void drivingLoop(DriveModel *driveModel){
     switch(driveModel->direction){
         case moveStop:
@@ -186,6 +235,7 @@ void drivingLoop(DriveModel *driveModel){
 WebSocketsServer webSocket = WebSocketsServer(port);
 
 void initPins(){
+    pinMode (BUZZER_PIN, OUTPUT);
     pinMode (LED_PIN, OUTPUT);
     pinMode (ENA_PIN, OUTPUT);
     pinMode (IN1_PIN, OUTPUT);
@@ -220,6 +270,11 @@ void onMessageWS(String json){
 
         updateDriveStructure(pDriveModel, root);
     }
+    if(type.as<String>() == pBuzzerModel->type){
+
+        updateBuzzerStructure(pBuzzerModel, root);
+    }
+
 
 }
 void sendModel(BaseModel *event){
@@ -304,5 +359,6 @@ void loop() {
     //testDriver();
     lightingLoop(pLedModel);
     drivingLoop(pDriveModel);
+    buzzerLoop(pBuzzerModel);
 
 }
