@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include ".././lib/ArduinoJson/src/ArduinoJson.h"
+#include ".././lib/Buzzer/src/ezBuzzer.h"
 #include <ESP8266WiFi.h>
 #include ".././lib/WebSockets/src/WebSocketsServer.h"
 #define __AVR__ //for  WebSocketServerEvent
@@ -86,17 +87,34 @@ struct DriveModel :  BaseModel {
 
 struct BuzzerModel :  BaseModel {
     String type = "BuzzerModel";
-    static const int countNotes = 32;
-    int frequences[countNotes] = {};
-    int durations[countNotes] = {};
+    int frequences[100] = {/*392, 392, 392, 311, 466, 392, 311, 466, 392,
+                                  587, 587, 587, 622, 466, 369, 311, 466, 392,
+                                  784, 392, 392, 784, 739, 698, 659, 622, 659,
+                                  415, 554, 523, 493, 466, 440, 466, 311, 369,
+                                  311, 466, 392*/};
+    int durations[100] = {/*350, 350, 350, 250, 100, 350, 250, 100, 700,
+                                 350, 350, 350, 250, 100, 350, 250, 100, 700,
+                                 350, 250, 100, 350, 250, 100, 100, 100, 450,
+                                 150, 350, 250, 100, 100, 100, 450, 150, 350,
+                                 250, 100, 750*/};
     bool active = false;
     String toJsonString(){
-        StaticJsonDocument<200> doc;
+        StaticJsonDocument<1536> doc;
         JsonObject root = doc.to<JsonObject>();
+        const size_t CAPACITY_F= JSON_ARRAY_SIZE(sizeof(frequences) / sizeof(int));
+        const size_t CAPACITY_D= JSON_ARRAY_SIZE(sizeof(durations) / sizeof(int));
+        StaticJsonDocument<CAPACITY_F> docFr;
+        StaticJsonDocument<CAPACITY_D> docDur;
         root["type"] = type;
         root["active"] = active;
-       /* root["frequences"] = frequences;
-        root["durations"] = durations;*/
+        root["frequences"] = docFr.to<JsonArray>();
+        root["durations"] = docDur.to<JsonArray>();
+        for(int frequence: frequences){
+            root["frequences"].add(frequence);
+        }
+        for(int duration: durations){
+            root["durations"].add(duration);
+        }
         String output;
         serializeJson(root,output);
         return output;
@@ -107,17 +125,21 @@ struct BuzzerModel *pBuzzerModel = &buzzerModel;
 struct LedModel *pLedModel = &ledModel;
 struct DriveModel *pDriveModel = &driveModel;
 
+ezBuzzer buzzer(BUZZER_PIN);
+
 void updateLedStructure(LedModel *ledModel, JsonObject &object){
     JsonVariant brightness = object.getMember("brightness");
     ledModel->brightness = brightness.as<int>();
 }
 void updateBuzzerStructure(BuzzerModel *buzzerModel, JsonObject &object){
     JsonVariant active = object.getMember("active");
+
+    buzzerModel->active = active.as<bool>();
     JsonArray  frequences = object.getMember("frequences");
     JsonArray  durations = object.getMember("durations");
-    buzzerModel->active = active.as<bool>();
     int index = 0;
     for(JsonVariant v : frequences) {
+
         buzzerModel->frequences[index] = v.as<int>();
         index++;
     }
@@ -132,16 +154,17 @@ void updateDriveStructure(DriveModel *driveModel, JsonObject &object){
     JsonVariant direction = object.getMember("direction");
     driveModel->speed = speed.as<int>();
     driveModel->direction = direction.as<int>();
-    Serial.printf("updateDriveStructure: %d  speed: %d\n", driveModel->direction,driveModel->speed);
 }
 void buzzerLoop(BuzzerModel *buzzerModel){
-    if(!buzzerModel->active){
-        return;
+    buzzer.loop();
+    if(buzzerModel->active && buzzer.getState() != BUZZER_MELODY){
+        Serial.println("buzzer.playMelody");
+        buzzer.playMelody(buzzerModel->frequences, buzzerModel->durations, sizeof(buzzerModel->durations) / sizeof(int));
+
     }
-    for (int i = 0; i <= BuzzerModel::countNotes; i++  ){
-      tone(BUZZER_PIN, buzzerModel->frequences[i], buzzerModel->durations[i] * 2); // Включаем звук, определенной частоты
-        delay(buzzerModel->durations[i] * 2);  // Дауза для заданой ноты
-        noTone(BUZZER_PIN); // Останавливаем звук
+    if(!buzzerModel->active && buzzer.getState() != BUZZER_IDLE){
+        Serial.println("buzzer.stop");
+        buzzer.stop();
     }
 }
 
@@ -160,7 +183,6 @@ void drivingLoop(DriveModel *driveModel){
             analogWrite(ENB_PIN, driveModel->speed);
             break;
         case moveForward:
-            Serial.printf("moveForward direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, HIGH);
             digitalWrite(IN2_PIN, LOW);
@@ -169,7 +191,6 @@ void drivingLoop(DriveModel *driveModel){
             digitalWrite(IN4_PIN, LOW);
             break;
         case moveBack:
-            Serial.printf("moveBack direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             digitalWrite(IN1_PIN, LOW);
             digitalWrite(IN2_PIN, HIGH);
@@ -178,7 +199,6 @@ void drivingLoop(DriveModel *driveModel){
             digitalWrite(IN4_PIN, HIGH);
             break;
         case moveRight:
-            Serial.printf("moveRight direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENA_PIN, driveModel->speed);
             analogWrite(ENB_PIN, 0);
             digitalWrite(IN1_PIN, HIGH);
@@ -187,7 +207,6 @@ void drivingLoop(DriveModel *driveModel){
             digitalWrite(IN4_PIN, LOW);
             break;
         case moveLeft:
-            Serial.printf("moveLeft direction %d speed %d\n", driveModel->direction, driveModel->speed);
             analogWrite(ENB_PIN, driveModel->speed);
             analogWrite(ENA_PIN, 0);
             digitalWrite(IN3_PIN, HIGH);
@@ -235,7 +254,7 @@ void drivingLoop(DriveModel *driveModel){
 WebSocketsServer webSocket = WebSocketsServer(port);
 
 void initPins(){
-    pinMode (BUZZER_PIN, OUTPUT);
+    //pinMode (BUZZER_PIN, OUTPUT);
     pinMode (LED_PIN, OUTPUT);
     pinMode (ENA_PIN, OUTPUT);
     pinMode (IN1_PIN, OUTPUT);
@@ -253,7 +272,7 @@ void onConnectWS(){
 void onDisconnectWS(){}
 
 void onMessageWS(String json){
-    StaticJsonDocument<200> doc;
+    StaticJsonDocument<1536> doc;
     DeserializationError error = deserializeJson(doc, json);
     if (error) {
         Serial.print(F("deserializeJson() failed: "));
