@@ -7,8 +7,8 @@
 #include ".././lib/WebSockets/src/WebSocketsServer.h"
 #define __AVR__ //for  WebSocketServerEvent
 #ifndef APSSID
-#define APSSID "adz"
-#define APPSK  "Admin1234%"
+#define APSSID "esp-car4"
+#define APPSK  "esp-car4"
 #define SERVER_PORT 81;
 #endif
 /*
